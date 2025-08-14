@@ -1,4 +1,6 @@
 wait(30)
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Xenijo/AdoptMe-RemoteBypass/main/Bypass.lua"))()
+wait(10)
 loadstring(game:HttpGet("https://raw.githubusercontent.com/akagikay/far/refs/heads/main/buy"))()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/akagikay/far/refs/heads/main/server"))()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/akagikay/far/refs/heads/main/serenityhub"))()

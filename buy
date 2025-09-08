@@ -1,9 +1,21 @@
 loadstring(game:HttpGet("https://raw.githubusercontent.com/Xenijo/AdoptMe-RemoteBypass/main/Bypass.lua"))()
-wait(0.1)
+wait(100)
+-- This script will invoke a server event 100 times, with a 30-second delay between each invocation.
+
+-- Define the arguments to be passed to the server event
 local args = {
-    [1] = "pets",
-    [2] = "aztec_egg_2025_royal_aztec_egg", 
-    [3] = {}
+    "pets",
+    "house_pets_2025_siamese_cat",
+    {
+        buy_count = 1
+    }
 }
 
-game:GetService("ReplicatedStorage").API:FindFirstChild("ShopAPI/BuyItem"):InvokeServer(unpack(args))
+-- Loop 100 times
+for i = 1, 100 do
+    -- Invoke the server event with the specified arguments
+    game:GetService("ReplicatedStorage"):WaitForChild("API"):WaitForChild("brzANdXPSLQcN/I"):InvokeServer(unpack(args))
+    
+    -- Wait for 30 seconds before the next iteration
+    wait(30)
+end

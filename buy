@@ -13,5 +13,5 @@ for i = 1, 100 do
     game:GetService("ReplicatedStorage"):WaitForChild("API"):WaitForChild("brzANdXPSLQcN/I"):InvokeServer(unpack(args))
     
     -- It is recommended to add a small delay to prevent potential issues.
-    wait(1) 
+    wait(30) 
 end

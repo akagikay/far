@@ -1,17 +1,13 @@
 loadstring(game:HttpGet("https://raw.githubusercontent.com/Xenijo/AdoptMe-RemoteBypass/main/Bypass.lua"))()
 wait(100)
 -- This loop will run the code inside of it 100 times.
-for i = 1, 100 do
-    -- The code you provided is placed within the loop.
+for i = 1, 10 do
     local args = {
-        "pets",
-        "house_pets_2025_siamese_cat",
-        {
-            buy_count = 1
-        }
+        [1] = "pets",
+        [2] = "house_pets_2025_siamese_cat",
+        [3] = {}
     }
-    game:GetService("ReplicatedStorage"):WaitForChild("API"):WaitForChild("brzANdXPSLQcN/I"):InvokeServer(unpack(args))
-    
-    -- It is recommended to add a small delay to prevent potential issues.
-    wait(30) 
+
+    game:GetService("ReplicatedStorage").API:FindFirstChild("ShopAPI/BuyItem"):InvokeServer(unpack(args))
+    task.wait(0.1)
 end

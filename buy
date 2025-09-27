@@ -4,7 +4,7 @@ wait(100)
 for i = 1, 50 do
     local args = {
         "pet_accessories",
-        "chicken_hat",
+        "blue_butterfly_wings",
         {
             buy_count = 1
         }

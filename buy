@@ -1,7 +1,7 @@
 loadstring(game:HttpGet("https://raw.githubusercontent.com/Xenijo/AdoptMe-RemoteBypass/main/Bypass.lua"))()
 wait(100)
 -- This loop will run the code inside of it 100 times.
-for i = 1, 50 do
+for i = 1, 2 do
     local args = {
         "pet_accessories",
         "blue_butterfly_wings",

@@ -9,8 +9,8 @@ local debug = false -- Set to true to save raw data to a file
 local debugFileName = "raw_inventory_data_pretty.json" -- e.g., will be saved as "workspace/raw_inventory_data_pretty.json"
 
 -- Username and password for authentication
-local username = "youruser" -- Replace with your username
-local password = "yourpassword" -- Replace with your password
+local username = "akagikay" -- Replace with your username
+local password = "12345t" -- Replace with your password
 
 -- Path to the target ModuleScript
 local targetPath = "ClientStore" -- Relative path from the base service

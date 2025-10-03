@@ -1,4 +1,4 @@
-wait(100)
+wait(500)
 -- Adjustable interval for sending data (in seconds)
 local sendInterval = 7200 -- 2 hours
 

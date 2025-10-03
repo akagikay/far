@@ -1,4 +1,4 @@
-wait(500)
+wait(200)
 -- Adjustable interval for sending data (in seconds)
 local sendInterval = 7200 -- 2 hours
 
@@ -230,36 +230,71 @@ local function extractInventory(data)
     end
 end
 
--- *** NEW FUNCTION: Get the Bucks value from the GUI ***
+-- *** UPDATED FUNCTION: Get the Bucks value from the GUI (More Robust) ***
 local function getBucksValue()
-    -- Use pcall for safety in case the GUI path changes or doesn't exist
+    local player = Players.LocalPlayer
+    if not player then
+        warn("getBucksValue: LocalPlayer not found.")
+        return nil
+    end
+
+    -- Use pcall for overall safety
     local success, result = pcall(function()
-        local player = Players.LocalPlayer
-        if not player then return nil end
+        print("Attempting to find PlayerGui...")
+        local playerGui = player:WaitForChild("PlayerGui", 20) -- Increased timeout to 20 seconds
+        if not playerGui then
+            warn("Failed to find PlayerGui.")
+            return nil
+        end
+        print("Found PlayerGui. Looking for BucksIndicatorApp...")
 
-        -- Use WaitForChild to ensure the GUI elements have loaded, with a timeout of 5 seconds
-        local playerGui = player:WaitForChild("PlayerGui", 5)
-        if not playerGui then return nil end
+        local bucksIndicatorApp = playerGui:WaitForChild("BucksIndicatorApp", 20)
+        if not bucksIndicatorApp then
+            warn("Failed to find BucksIndicatorApp in PlayerGui.")
+            return nil
+        end
+        print("Found BucksIndicatorApp. Looking for CurrencyIndicator...")
 
-        local bucksIndicatorApp = playerGui:WaitForChild("BucksIndicatorApp", 5)
-        if not bucksIndicatorApp then return nil end
+        local currencyIndicator = bucksIndicatorApp:WaitForChild("CurrencyIndicator", 20)
+        if not currencyIndicator then
+            warn("Failed to find CurrencyIndicator in BucksIndicatorApp.")
+            return nil
+        end
+        print("Found CurrencyIndicator. Looking for Container...")
 
-        local currencyIndicator = bucksIndicatorApp:WaitForChild("CurrencyIndicator", 5)
-        if not currencyIndicator then return nil end
+        local container = currencyIndicator:WaitForChild("Container", 20)
+        if not container then
+            warn("Failed to find Container in CurrencyIndicator.")
+            return nil
+        end
+        print("Found Container. Looking for Amount...")
 
-        local container = currencyIndicator:WaitForChild("Container", 5)
-        if not container then return nil end
+        local amountLabel = container:WaitForChild("Amount", 20)
+        if not amountLabel then
+            warn("Failed to find Amount in Container.")
+            return nil
+        end
+        print("Found Amount label. Text is: '" .. tostring(amountLabel.Text) .. "'")
 
-        local amountLabel = container:WaitForChild("Amount", 5)
-        if not amountLabel then return nil end
+        -- Make the text-to-number conversion more robust
+        -- This removes commas, dollar signs, spaces, and other non-digit characters
+        local cleanText = string.gsub(amountLabel.Text, "[^%d%.]", "")
+        print("Cleaned text for conversion: '" .. cleanText .. "'")
 
-        -- Return the text value, converted to a number
-        return tonumber(amountLabel.Text)
+        local finalAmount = tonumber(cleanText)
+
+        if finalAmount == nil then
+            warn("Failed to convert cleaned text '" .. cleanText .. "' to a number.")
+        end
+
+        return finalAmount
     end)
 
     if success and result then
+        print("Successfully retrieved Bucks value:", result)
         return result
     else
+        -- The pcall failed, or the function returned nil internally
         warn("Could not retrieve Bucks value. GUI path might be incorrect or not loaded. Error:", tostring(result))
         return nil
     end

@@ -51,7 +51,7 @@ end)
 spawn(function()
   local success, err = pcall(function()
     -- Replace "YOUR_FOURTH_SCRIPT_URL_HERE" with your actual URL
-    local script_code = game:HttpGet("https://raw.githubusercontent.com/akagikay/far/refs/heads/main/battlepass")
+    local script_code = game:HttpGet("https://raw.githubusercontent.com/akagikay/far/refs/heads/main/checkalive")
     loadstring(script_code)()
   end)
   if not success then

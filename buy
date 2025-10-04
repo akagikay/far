@@ -1,1 +1,12 @@
-print("nothing to buy")
+wait(300)
+for i = 1, 50 do
+    local args = {
+        "pet_accessories",
+        "eco_brown_earth_wizard_hat",
+        {
+            buy_count = 1
+        }
+    }
+    game:GetService("ReplicatedStorage"):WaitForChild("API"):WaitForChild("ShopAPI/BuyItem"):InvokeServer(unpack(args))
+    wait(0.1) -- It is good practice to include a small delay to avoid overwhelming the server.
+end

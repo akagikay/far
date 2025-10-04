@@ -1,5 +1,5 @@
 wait(300)
-for i = 1, 50 do
+for i = 1, 200 do
     local args = {
         "pet_accessories",
         "eco_brown_earth_wizard_hat",

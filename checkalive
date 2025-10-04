@@ -10,7 +10,7 @@ local USER_CREDENTIALS = {
 }
 
 -- How often to send a ping, in seconds. (Default: 60 seconds)
-local PING_INTERVAL = 60
+local PING_INTERVAL = 120
 
 --[[
 ================================================================================

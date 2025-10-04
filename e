@@ -41,7 +41,7 @@ end)
 spawn(function()
   local success, err = pcall(function()
     -- Replace "YOUR_THIRD_SCRIPT_URL_HERE" with your actual URL
-    local script_code = game:HttpGet("https://raw.githubusercontent.com/akagikay/far/refs/heads/main/serenityhub")
+    local script_code = game:HttpGet("https://raw.githubusercontent.com/akagikay/far/refs/heads/main/autofarm")
     loadstring(script_code)()
   end)
   if not success then

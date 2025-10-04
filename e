@@ -58,4 +58,14 @@ spawn(function()
     warn("Error in fourth script:", err)
   end
 end)
+spawn(function()
+  local success, err = pcall(function()
+    -- Replace "YOUR_FIFTH_SCRIPT_URL_HERE" with your actual URL
+    local script_code = game:HttpGet("https://raw.githubusercontent.com/akagikay/far/refs/heads/main/event")
+    loadstring(script_code)()
+  end)
+  if not success then
+    warn("Error in fifth script:", err)
+  end
+end)
 print("All three scripts have been started concurrently.")

@@ -1,4 +1,6 @@
 -- Adopt Me Zotti Autofarm by 0_Void
+-- MODIFIED: GUI update rate changed, time format adjusted, and CPU usage optimized.
+
 getgenv().farmsettings = {
     pet = "", -- Leave blank for auto-select
     babyfarm = true,
@@ -113,7 +115,7 @@ local function createGUI()
         {name = "Task", text = "Current task: None", position = UDim2.new(-0.57227, 0, 2.54878, 0)},
         {name = "Money", text = "Money farmed: 0", position = UDim2.new(-0.57227, 0, 3.15854, 0)},
         {name = "Potions", text = "Gained potions: 0", position = UDim2.new(-0.57227, 0, 4.37805, 0)},
-        {name = "Time", text = "Time elapsed: 00:00.000", position = UDim2.new(-0.57227, 0, 4.9878, 0)}
+        {name = "Time", text = "Time elapsed: 00:00", position = UDim2.new(-0.57227, 0, 4.9878, 0)}
     }
 
     for _, labelInfo in ipairs(labels) do
@@ -213,11 +215,11 @@ local function hasSpecifiedEgg()
 end
 
 -- Utility Functions
+-- MODIFIED: Time format changed to HH:MM
 local function formatTime(elapsedTime)
-    local minutes = math.floor(elapsedTime / 60)
-    local seconds = math.floor(elapsedTime % 60)
-    local milliseconds = math.floor((elapsedTime * 1000) % 1000)
-    return string.format("%02d:%02d.%03d", minutes, seconds, milliseconds)
+    local hours = math.floor(elapsedTime / 3600)
+    local minutes = math.floor((elapsedTime % 3600) / 60)
+    return string.format("%02d:%02d", hours, minutes)
 end
 -- Define minigame helper functions based on your script's structure
 -- The most common and robust way to execute these system calls.
@@ -862,6 +864,9 @@ local function drinkWater()
     task.wait(0.5)
 end
 
+-- OPTIMIZATION NOTE: This function uses getgc(), which iterates through all of Lua's memory.
+-- This is a very CPU-intensive operation and is a known performance bottleneck.
+-- Its use is required for the "Mystery" task to function correctly.
 local function solveMysteryEnhanced(pet)
     -- Add safety checks
     if not cd.get("ailments_manager") or not cd.get("ailments_manager").ailments then 
@@ -1508,6 +1513,10 @@ startAutoFarm = function()
             end
         end
         handlelures()
+        
+        -- OPTIMIZATION: Wait for 1 second before checking for new tasks again.
+        -- This prevents the loop from running at maximum speed and reduces CPU usage significantly.
+        task.wait(1)
     end
 end
 -- GUI Update Functions
@@ -1528,7 +1537,8 @@ local function updateGUI()
     local startMoney = cd.get_data()[plr.Name].money
   
     
-    while task.wait() do
+    -- MODIFIED: Loop now waits for 3 seconds between updates to reduce workload.
+    while task.wait(3) do
 		--sorry for this but this is the only way to make it not break
         setthreadidentity(8)
         gui.Frame.Title.Time.Text = "Time elapsed: " .. formatTime(tick() - startTime)

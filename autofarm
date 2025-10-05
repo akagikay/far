@@ -1,13 +1,13 @@
 -- Adopt Me Zotti Autofarm by 0_Void
--- MODIFIED: GUI update rate changed, time format adjusted, and CPU usage optimized.
+-- MODIFIED: Further optimized for lower CPU and RAM usage.
 
 getgenv().farmsettings = {
     pet = "", -- Leave blank for auto-select
     babyfarm = true,
     switchpetsongrown = false, -- False for age potions
 	prioritizeeggs = false,
-    webhook = "",
-	gui = true,
+    webhook = "", -- Set to "" to disable the webhook thread
+	gui = true, -- Set to false to disable the GUI thread
 }
 --writefile("adoptmeautofarm.txt")
 if getgenv().running then 
@@ -1514,9 +1514,12 @@ startAutoFarm = function()
         end
         handlelures()
         
-        -- OPTIMIZATION: Wait for 1 second before checking for new tasks again.
-        -- This prevents the loop from running at maximum speed and reduces CPU usage significantly.
-        task.wait(1)
+        -- OPTIMIZATION: Perform a small garbage collection step to prevent lag spikes and keep RAM usage stable.
+        collectgarbage("step")
+        
+        -- OPTIMIZATION: Increased wait time to 2 seconds. This is the biggest CPU saver.
+        -- It reduces how often the script checks for tasks, significantly lowering its performance footprint.
+        task.wait(2)
     end
 end
 -- GUI Update Functions
@@ -1659,8 +1662,15 @@ local function init()
     end)]=]
     getgenv().running = true
     antiAFK()
-    task.spawn(updateGUI)
-    task.spawn(webhookpost)
+
+    -- OPTIMIZATION: Only start these threads if the features are enabled in the settings.
+    if getgenv().farmsettings.gui then
+        task.spawn(updateGUI)
+    end
+    if getgenv().farmsettings.webhook and getgenv().farmsettings.webhook ~= "" then
+        task.spawn(webhookpost)
+    end
+
     task.spawn(autoClaimTreatBag)
     task.spawn(autoJoinPoller)
 	if not (#get_items_of_kind("trade_license", "toys") > 0) then

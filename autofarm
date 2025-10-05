@@ -1,4 +1,4 @@
--- Adopt Me Zotti Autofarm by 0_Void (Optimized Version)
+-- Adopt Me Zotti Autofarm by 0_Void (Optimized Version - UI and Low FPS Fix)
 getgenv().farmsettings = {
     pet = "", -- Leave blank for auto-select
     babyfarm = true,
@@ -43,7 +43,6 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
-local CoreGui = game:GetService("CoreGui")
 local plr = Players.LocalPlayer
 local router = require(ReplicatedStorage.ClientModules.Core.RouterClient.RouterClient)
 local cd = require(ReplicatedStorage.ClientModules.Core.ClientData)
@@ -79,11 +78,12 @@ if plr.Character == nil then
 end
 -- GUI Creation
 local function createGUI()
-    local screenGui = Instance.new("ScreenGui", CoreGui) -- OPTIMIZATION: Parent to CoreGui for better performance
+    -- UI FIX: Parent to gethui() to ensure visibility on all executors.
+    local screenGui = Instance.new("ScreenGui", gethui()) 
     screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     screenGui.DisplayOrder = -1
     screenGui.ResetOnSpawn = false
-    screenGui.Archivable = false -- OPTIMIZATION: Exclude from saving, minor memory benefit
+    screenGui.Archivable = false
 
     local mainFrame = Instance.new("Frame", screenGui)
     mainFrame.BorderSizePixel = 0
@@ -872,7 +872,8 @@ local function waitForAilmentFinish(ailment, callback, ailmentType, pet)
             break
         end
         
-        if tick() - started >= 70 then
+        -- LOW FPS FIX: Increased timeout from 70 to 120 seconds to prevent false timeouts on laggy clients.
+        if tick() - started >= 120 then
             print("[DEBUG] Task timed out, restarting autofarm.")
             task.spawn(startAutoFarm)
             coroutine.yield() -- Stop the current thread

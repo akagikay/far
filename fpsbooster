@@ -1,1 +1,159 @@
-print("non")
+-- The Ultimate Performance Script v2.0
+-- Combines "Invisible Mode" and "Low Detail Mode" into one efficient, event-driven script.
+-- Correctly handles new objects being added to the game with minimal performance impact.
+
+--[[------------------------------------------------------------------------------------------
+--                                      --- SETTINGS ---
+--------------------------------------------------------------------------------------------]]
+
+local settings = {
+    -- Choose your optimization mode.
+    -- "INVISIBLE":   Maximum performance. Hides everything. Use for pure AFK.
+    -- "LOW_DETAIL":  Good performance. Degrades visuals but keeps the game viewable.
+    Mode = "INVISIBLE",
+
+    -- Should the script also optimize your own character?
+    -- Set to 'false' if you want to see your character normally.
+    OptimizeCharacter = true,
+}
+
+--[[------------------------------------------------------------------------------------------
+--                                    --- DO NOT EDIT BELOW ---
+--------------------------------------------------------------------------------------------]]
+
+-- --- Services ---
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+-- Ensure we don't connect events multiple times if script is run again
+if getgenv().PerformanceScriptCleanup then
+    getgenv().PerformanceScriptCleanup()
+end
+
+print("[Performance] Initializing Ultimate Performance Script. Mode: " .. settings.Mode)
+
+-- --- Core Optimization Logic ---
+
+-- This single function handles the optimization for any given object.
+local function applyOptimizationsToObject(object)
+    -- Use pcall to prevent any errors from stopping the script
+    pcall(function()
+        if object:IsA("BasePart") then
+            if settings.Mode == "INVISIBLE" then
+                object.Transparency = 1
+                object.LocalTransparencyModifier = 1 -- Ensures transparency applies locally
+            elseif settings.Mode == "LOW_DETAIL" then
+                object.Material = Enum.Material.SmoothPlastic
+                object.Color = Color3.fromRGB(128, 128, 128)
+            end
+            object.CastShadow = false
+            
+        elseif object:IsA("Decal") or object:IsA("Texture") then
+            if settings.Mode == "INVISIBLE" then
+                object.Transparency = 1
+            else
+                object.Parent = nil -- More effective for Low Detail
+            end
+            
+        elseif object:IsA("ParticleEmitter") or object:IsA("Fire") or object:IsA("Smoke") or object:IsA("Sparkles") then
+            object.Enabled = false
+            
+        elseif object:IsA("Light") or object:IsA("SpotLight") or object:IsA("SurfaceLight") or object:IsA("PointLight") then
+            object.Enabled = false
+            
+        elseif object:IsA("PostEffect") or object:IsA("BloomEffect") or object:IsA("BlurEffect") then
+            object.Enabled = false
+        end
+    end)
+end
+
+-- --- Global Lighting and Environment Settings ---
+local function configureGlobalSettings()
+    print("[Performance] Applying global lighting and render settings...")
+    Lighting.GlobalShadows = false
+    Lighting.FogEnd = 20
+    
+    if settings.Mode == "INVISIBLE" then
+        Lighting.Brightness = 0
+        Lighting.Ambient = Color3.fromRGB(0, 0, 0)
+        Lighting.OutdoorAmbient = Color3.fromRGB(0, 0, 0)
+    else -- LOW_DETAIL
+        Lighting.Brightness = 1
+        Lighting.Ambient = Color3.fromRGB(128, 128, 128)
+        Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+    end
+    
+    -- Disable atmospheric effects
+    local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+    if atmosphere then atmosphere.Parent = nil end
+    local sky = Lighting:FindFirstChildOfClass("Sky")
+    if sky then sky.Parent = nil end
+end
+
+-- --- Character Handling ---
+local function optimizeCharacter(character)
+    if not settings.OptimizeCharacter then return end
+    print("[Performance] Optimizing new character model...")
+    for _, descendant in ipairs(character:GetDescendants()) do
+        applyOptimizationsToObject(descendant)
+    end
+end
+
+-- --- Main Execution ---
+
+-- 1. Apply global settings once
+configureGlobalSettings()
+
+-- 2. Perform an initial, full scan of everything already in the workspace
+print("[Performance] Performing initial scan of workspace...")
+for _, descendant in ipairs(Workspace:GetDescendants()) do
+    if not RunService:IsStudio() then -- Add a small delay in live games to prevent script exhaustion on huge maps
+        if _ % 500 == 0 then task.wait() end
+    end
+    applyOptimizationsToObject(descendant)
+end
+print("[Performance] Initial scan complete.")
+
+-- 3. Connect to the DescendantAdded event to handle all new objects instantly and efficiently
+local descendantAddedConnection = Workspace.DescendantAdded:Connect(applyOptimizationsToObject)
+print("[Performance] Now listening for new objects to optimize.")
+
+-- 4. Connect to player character events to handle spawning and respawning
+local player = Players.LocalPlayer
+local characterAddedConnection
+local characterLoadedConnection
+
+if player then
+    characterAddedConnection = player.CharacterAdded:Connect(function(character)
+        -- Wait for the character's appearance to be fully loaded
+        characterLoadedConnection = character.CharacterAppearanceLoaded:Connect(function()
+            optimizeCharacter(character)
+            if characterLoadedConnection then
+                characterLoadedConnection:Disconnect()
+            end
+        end)
+        -- Fallback in case CharacterAppearanceLoaded doesn't fire
+        task.wait(1)
+        if characterLoadedConnection then
+            optimizeCharacter(character)
+            characterLoadedConnection:Disconnect()
+        end
+    end)
+    
+    -- Handle character if it already exists
+    if player.Character then
+        optimizeCharacter(player.Character)
+    end
+end
+
+-- 5. Create a cleanup function to disconnect all events if the script needs to be stopped
+getgenv().PerformanceScriptCleanup = function()
+    if descendantAddedConnection then descendantAddedConnection:Disconnect() end
+    if characterAddedConnection then characterAddedConnection:Disconnect() end
+    if characterLoadedConnection then characterLoadedConnection:Disconnect() end
+    print("[Performance] Script connections cleaned up.")
+end
+
+print("[Performance] Script is now fully active.")

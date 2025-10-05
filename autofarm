@@ -1,13 +1,8 @@
-script_key="WorkFine";
+script_key="TEldwxNsQHqqpHxBLteSOJUExppoESKz";
 getgenv().Config = {
-    ["PetAMountToBuy"] = "0", -- can be 999
-    ["PetRemoteToBuy"] = "moon_2025_egg",
-
     ["PetFarmAutoSwitchFullGrown"] = false,
-    ["PetFarmActive"] = false,
-    ["LitePetFarmActive"] = true,
+    ["PetFarmActive"] = true,
     ["EggFarmActive"] = false,
-    
     ["HideUselessGui"] = true,
     ["Blur_username"] = true,
     ["Blazing_Lion_Log"] = false,

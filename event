@@ -1,0 +1,58 @@
+wait(60)
+--[[
+    Script: Headless Horseman Treat Bag Auto-Claimer
+    Description: This script automatically claims the Headless Horseman's treat bag every 10 minutes
+    to collect items like the Yarn Apple. It uses a remote bypass to interact with the game's API.
+    This is a standalone script.
+]]
+
+-- Wait for the game to fully load to ensure all services and APIs are available.
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+warn("Game loaded. Initializing Treat Bag Auto-Claimer...")
+task.wait(5) -- Extra delay for safety
+
+-- Main function to handle the treat bag claiming logic
+local function autoClaimTreatBag()
+    -- Internal function to execute the remote bypass and claim the bag
+    local function claimBag()
+        warn("[TreatBag] Attempting to claim the Headless Horseman's treat bag...")
+        
+        -- This line loads and executes an external script (a remote bypass)
+        -- which is necessary to call the server-side function.
+        local bypassLoaded, bypassError = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/Xenijo/AdoptMe-RemoteBypass/main/Bypass.lua"))()
+        end)
+
+        if not bypassLoaded then
+            warn("[TreatBag] Failed to load the remote bypass script: " .. tostring(bypassError))
+            return -- Stop if the bypass fails to load
+        end
+        
+        task.wait(0.2) -- Short wait after loading the bypass
+        
+        -- Invoke the server to claim the bag
+        local claimSuccess, claimResult = pcall(function()
+            return game:GetService("ReplicatedStorage"):WaitForChild("API"):WaitForChild("HalloweenEventAPI/ClaimTreatBag"):InvokeServer()
+        end)
+        
+        if claimSuccess then
+             warn("[TreatBag] Claim remote invoked successfully.")
+        else
+             warn("[TreatBag] Failed to invoke the claim remote (Bypass may be outdated or the remote has changed): " .. tostring(claimResult))
+        end
+    end
+
+    -- 1. Claim the bag once immediately at the start of the script
+    claimBag()
+
+    -- 2. Create a loop to claim the bag every 10 minutes (600 seconds)
+    while task.wait(600) do
+        claimBag()
+    end
+end
+
+-- Start the auto-claiming process in a new thread to prevent it from yielding the entire script executor
+task.spawn(autoClaimTreatBag)
+warn("Headless Horseman Treat Bag Auto-Claimer is now running in the background.")

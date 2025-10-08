@@ -1,6 +1,6 @@
 wait(200)
 -- Adjustable interval for sending data (in seconds)
-local sendInterval = 120 -- 2 minutes
+local sendInterval = 900 -- 2 minutes
 
 -- Debug mode flag
 local debug = false -- Set to true to save raw data to a file

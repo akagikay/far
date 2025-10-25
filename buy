@@ -1,12 +1,11 @@
 for i = 1, 2 do
   wait(1)
-  loadstring(game:HttpGet("https://raw.githubusercontent.com/Xenijo/AdoptMe-RemoteBypass/main/Bypass.lua"))()
   local args = {
-      "pet_accessories",
-      "sailor_cap", 
-      {
-          buy_count = 1
-      }
-  }
-  game:GetService("ReplicatedStorage"):WaitForChild("API"):WaitForChild("ShopAPI/BuyItem"):InvokeServer(unpack(args))
+    "pet_accessories",
+   "blue_cat_ear_headphones", 
+    {
+        buy_count = 1
+    }
+}
+game:GetService("ReplicatedStorage"):WaitForChild("API"):WaitForChild("ShopAPI/BuyItem"):InvokeServer(unpack(args))
 end

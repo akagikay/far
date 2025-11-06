@@ -1,11 +1,1 @@
-for i = 1, 250 do
-  wait(1)
-  local args = {
-    "pet_accessories",
-   "blue_cat_ear_headphones", 
-    {
-        buy_count = 1
-    }
-}
-game:GetService("ReplicatedStorage"):WaitForChild("API"):WaitForChild("ShopAPI/BuyItem"):InvokeServer(unpack(args))
-end
+print("nothing to buy")

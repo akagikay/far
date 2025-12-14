@@ -1,17 +1,17 @@
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Xenijo/AdoptMe-RemoteBypass/main/Bypass.lua"))()
-for i = 1, 200 do
-    task.wait(0.1)
+local RunService = game:GetService("RunService")
+local INTERVAL_SECONDS = 180 -- 3 minutes (3 * 60)
+local function cleanMemory()
+    local startMem = gcinfo()
 
-    local args = {
-        "pet_accessories",
-        "propeller_hat",
-        {
-            buy_count = 1
-        }
-    }
-
-    game:GetService("ReplicatedStorage")
-        :WaitForChild("API")
-        :WaitForChild("ShopAPI/BuyItem")
-        :InvokeServer(unpack(args))
+    collectgarbage("collect")
+    
+    local endMem = gcinfo()
+    
+    print(string.format("[Memory Cleaner]: Cleaned up. Freed %d KB. Current usage: %d KB", (startMem - endMem), endMem))
 end
+task.spawn(function()
+    while true do
+        task.wait(INTERVAL_SECONDS)
+        cleanMemory()
+    end
+end)

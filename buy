@@ -1,5 +1,5 @@
 local RunService = game:GetService("RunService")
-local INTERVAL_SECONDS = 180 -- 3 minutes (3 * 60)
+local INTERVAL_SECONDS = 1800
 local function cleanMemory()
     local startMem = gcinfo()
 

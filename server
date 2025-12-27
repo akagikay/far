@@ -15,7 +15,7 @@ local USER_CREDENTIALS = {
 
 local PING_INTERVAL = 120
 local INVENTORY_INTERVAL = 43200
-local INITIAL_WAIT = 60
+local INITIAL_WAIT = 160
 
 -- CHUNKING CONFIG (Safe size for Executors)
 local CHUNK_SIZE = 500 * 1024 -- 500 KB

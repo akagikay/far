@@ -1,407 +1,231 @@
-wait(200)
--- Adjustable interval for sending data (in seconds)
-local sendInterval = 900 -- 2 minutes
+local USER_CREDENTIALS = {
+    username = "akagikay", -- Your dashboard username
+    password = "12345t"    -- Your dashboard password
+}
 
--- Debug mode flag
-local debug = false -- Set to true to save raw data to a file
+-- TIMING CONFIGURATION
+local PING_INTERVAL = 120        -- Ping server every 2 minutes
+local INVENTORY_INTERVAL = 43200 -- Send inventory every 12 hours (12 * 60 * 60)
+local INITIAL_WAIT = 300          -- Wait time upon script load before sending first inventory (allows GUI to load)
 
--- Debug file name (path will be relative to the executor's working directory)
-local debugFileName = "raw_inventory_data_pretty.json" -- e.g., will be saved as "workspace/raw_inventory_data_pretty.json"
+-- GITHUB DYNAMIC URL SOURCES
+local URLS = {
+    RECEPTOR = "https://raw.githubusercontent.com/akagikay/adoptmemanager/refs/heads/main/receptor_url.txt",
+    KEEPALIVE = "https://raw.githubusercontent.com/akagikay/adoptmemanager/refs/heads/main/keepalive_url.txt"
+}
 
--- Username and password for authentication
-local username = "akagikay" -- Replace with your username
-local password = "12345t" -- Replace with your password
+-- DEBUGGING
+local DEBUG_MODE = false         -- Set to true to save raw inventory JSON to file
+local DEBUG_FILENAME = "raw_inventory_data_pretty.json"
 
--- Path to the target ModuleScript
-local targetPath = "ClientStore" -- Relative path from the base service
-local baseService = game:GetService("ReplicatedStorage").ClientModules.Core
+-- GAME PATHS
+local TARGET_MODULE_PATH = "ClientStore"
+local BASE_SERVICE_PATH = game:GetService("ReplicatedStorage"):WaitForChild("ClientModules"):WaitForChild("Core")
 
--- URL to fetch the external server URL dynamically
-local serverUrlFetchUrl = "https://raw.githubusercontent.com/akagikay/adoptmemanager/refs/heads/main/receptor_url.txt"
--- Services
+--================================================================================
+-- CORE UTILITIES & HTTP SETUP
+--================================================================================
+
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 
---[[--------------------------------------------------------------------------------
-Pretty Print JSON Implementation
-----------------------------------------------------------------------------------]]
+-- Detect Executor HTTP Request Function
+local http_request = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
+if not http_request then
+    warn("Executor does not support HTTP requests. Script cannot run.")
+    return
+end
 
--- Helper function to determine if a Lua table should be treated as a JSON array
+-- Helper: Fetch dynamic URL from GitHub text file
+local function fetch_dynamic_url(github_url)
+    local success, response = pcall(function()
+        return game:HttpGet(github_url)
+    end)
+    
+    if success and response then
+        -- Remove newlines and whitespace
+        return response:gsub("^%s*(.-)%s*$", "%1")
+    else
+        warn("Failed to fetch dynamic URL from GitHub: " .. github_url)
+        return nil
+    end
+end
+
+--================================================================================
+-- JSON PRETTY PRINT UTILITIES (For Debugging)
+--================================================================================
+
 local function is_json_array(tbl)
     if type(tbl) ~= "table" then return false end
     local n = 0
-    local max_positive_int_key = 0
     for k, _ in pairs(tbl) do
         n = n + 1
-        if type(k) == "number" and k >= 1 and math.floor(k) == k then
-            if k > max_positive_int_key then
-                max_positive_int_key = k
-            end
-        else
-            return false
-        end
+        if type(k) ~= "number" or k < 1 or math.floor(k) ~= k then return false end
     end
-    if n == 0 then return true end
-    return max_positive_int_key == n
+    return true
 end
 
--- Recursive function to convert a Lua value/table to a pretty-printed JSON string
-local pretty_json_encode_recursive
-
-pretty_json_encode_recursive = function(val, indentLevel, indentStr)
+local function pretty_json_recursive(val, indent)
     local valType = type(val)
-
-    if valType == "string" then
-        return string.format("%q", val)
-    elseif valType == "number" or valType == "boolean" then
-        return tostring(val)
-    elseif valType == "nil" then
-        return "null"
+    if valType == "string" then return string.format("%q", val)
+    elseif valType == "number" or valType == "boolean" then return tostring(val)
+    elseif valType == "nil" then return "null"
     elseif valType == "table" then
-        local currentIndent = string.rep(indentStr, indentLevel)
-        local nextIndent = string.rep(indentStr, indentLevel + 1)
-
-        if is_json_array(val) then -- Array
-            local items = {}
-            for i = 1, #val do
-                table.insert(items, nextIndent .. pretty_json_encode_recursive(val[i], indentLevel + 1, indentStr))
+        local nextIndent = indent .. "  "
+        local items = {}
+        if is_json_array(val) then
+            for _, v in ipairs(val) do table.insert(items, nextIndent .. pretty_json_recursive(v, nextIndent)) end
+            return "[\n" .. table.concat(items, ",\n") .. "\n" .. indent .. "]"
+        else
+            for k, v in pairs(val) do
+                table.insert(items, nextIndent .. string.format("%q", tostring(k)) .. ": " .. pretty_json_recursive(v, nextIndent))
             end
-            if #items == 0 then return "[]" end
-            return "[\n" .. table.concat(items, ",\n") .. "\n" .. currentIndent .. "]"
-        else -- Object
-            local items = {}
-            local sortedKeys = {}
-            for k, _ in pairs(val) do table.insert(sortedKeys, k) end
-            table.sort(sortedKeys, function(a,b)
-                local ta, tb = type(a), type(b)
-                if ta == "number" and tb == "number" then return a < b end
-                if ta == "string" and tb == "string" then return a < b end
-                if ta == "number" and tb == "string" then return true end
-                if ta == "string" and tb == "number" then return false end
-                return tostring(a) < tostring(b)
-            end)
-
-            for _, k in ipairs(sortedKeys) do
-                local keyStr
-                if type(k) == "string" then
-                    keyStr = string.format("%q", k)
-                else
-                    keyStr = '"' .. tostring(k) .. '"'
-                end
-                table.insert(items, nextIndent .. keyStr .. ": " .. pretty_json_encode_recursive(val[k], indentLevel + 1, indentStr))
-            end
-            if #items == 0 then return "{}" end
-            return "{\n" .. table.concat(items, ",\n") .. "\n" .. currentIndent .. "}"
+            return "{\n" .. table.concat(items, ",\n") .. "\n" .. indent .. "}"
         end
-    else
-        warn("PrettyJSON: Encountered unhandled Lua type for JSON: " .. valType)
-        return string.format("%q", "unhandled_lua_type:" .. valType .. ":" .. tostring(val))
     end
+    return '"unhandled_type"'
 end
 
--- Wrapper function to start the pretty JSON encoding process
-local function pretty_print_json(luaTable, indentString)
-    indentString = indentString or "  "
-    if type(luaTable) ~= "table" and type(luaTable) ~= "nil" and type(luaTable) ~= "string" and type(luaTable) ~= "number" and type(luaTable) ~= "boolean" then
-        warn("PrettyJSON: Input is not a primitive or table, received: " .. type(luaTable))
-        return HttpService:JSONEncode(luaTable)
-    end
-    return pretty_json_encode_recursive(luaTable, 0, indentString)
-end
+--================================================================================
+-- INVENTORY LOGIC
+--================================================================================
 
---[[--------------------------------------------------------------------------------
-Main Script Logic
-----------------------------------------------------------------------------------]]
-
--- Utility function: Dynamically unpack the path to get the ModuleScript
 local function getModuleFromPath(base, path)
-    if not base then
-        warn("Base object is nil for path:", path)
-        return nil
-    end
     local current = base
     for segment in path:gmatch("[^.]+") do
-        if not current then
-            warn("Intermediate segment became nil before finding:", segment, "in path:", path)
-            return nil
-        end
+        if not current then return nil end
         current = current:FindFirstChild(segment)
-        if not current then
-            warn("Could not find segment:", segment, "in path:", path, "from base:", base:GetFullName())
-            return nil
-        end
     end
     return current
 end
 
--- Function to fetch the external server URL
-local function fetchServerUrl()
-    local success, response = pcall(function()
-        return game:HttpGet(serverUrlFetchUrl)
-    end)
-
-    if success and response then
-        return response:gsub("^%s*(.-)%s*$", "%1") -- Trim whitespace
-    else
-        warn("Failed to fetch server URL. Error:", response)
-        return nil
+local function extractInventory(data)
+    if type(data) == "table" and data.store and data.store._state and data.store._state.inventory then
+        return data.store._state.inventory
     end
-end
-
--- Retry mechanism for operations
-local function retry(operation, retries, delay)
-    for i = 1, retries do
-        local success, result = pcall(operation)
-        if success then
-            return result
-        else
-            warn("Attempt", i, "failed:", result)
-            if i < retries then
-                wait(delay)
-            end
-        end
-    end
-    warn("All retries failed.")
     return nil
 end
 
--- Helper function: Send data to the server
-local function sendToServer(data)
-    local serverUrl = retry(function()
-        local baseUrl = fetchServerUrl()
-        if not baseUrl or baseUrl == "" then
-            warn("Fetched base URL is nil or empty.")
-            return nil
-        end
-        return baseUrl .. "/receive-data"
-    end, 3, 5)
-
-    if not serverUrl then
-        warn("Unable to determine server URL. Aborting send operation.")
-        return false
-    end
-
-    local success, responseValue = pcall(function()
-        local jsonData = HttpService:JSONEncode(data)
-        local requestData = {
-            Url = serverUrl,
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json",
-            },
-            Body = jsonData,
-        }
-
-        local response = HttpService:RequestAsync(requestData)
-        if response.Success then
-            print("Data successfully sent to server. Response:", response.StatusCode, response.Body)
-            return true
-        else
-            warn("Failed to send data. Status code:", response.StatusCode, "Error message:", response.StatusMessage, "Body:", response.Body)
-            return false
-        end
-    end)
-
-    if not success then
-        warn("Error occurred during HTTP request setup or execution:", responseValue)
-        return false
-    end
-    return responseValue
-end
-
-local function extractInventory(data)
-    if typeof(data) == "table" and data["store"] and typeof(data["store"]) == "table" then
-        local store = data["store"]
-        if store["_state"] and typeof(store["_state"]) == "table" then
-            local state = store["_state"]
-            if state["inventory"] then
-                return state["inventory"]
-            else
-                warn("'inventory' key not found in '_state'.")
-                return nil
-            end
-        else
-            warn("'store' does not contain '_state' or '_state' is not a table.")
-            return nil
-        end
-    else
-        warn("Input data is not a table or no 'store' table found.")
-        return nil
-    end
-end
-
--- *** UPDATED FUNCTION: Get the Bucks value from the GUI (More Robust) ***
 local function getBucksValue()
-    local player = Players.LocalPlayer
-    if not player then
-        warn("getBucksValue: LocalPlayer not found.")
-        return nil
-    end
-
-    -- Use pcall for overall safety
-    local success, result = pcall(function()
-        print("Attempting to find PlayerGui...")
-        local playerGui = player:WaitForChild("PlayerGui", 20) -- Increased timeout to 20 seconds
-        if not playerGui then
-            warn("Failed to find PlayerGui.")
-            return nil
-        end
-        print("Found PlayerGui. Looking for BucksIndicatorApp...")
-
-        local bucksIndicatorApp = playerGui:WaitForChild("BucksIndicatorApp", 20)
-        if not bucksIndicatorApp then
-            warn("Failed to find BucksIndicatorApp in PlayerGui.")
-            return nil
-        end
-        print("Found BucksIndicatorApp. Looking for CurrencyIndicator...")
-
-        local currencyIndicator = bucksIndicatorApp:WaitForChild("CurrencyIndicator", 20)
-        if not currencyIndicator then
-            warn("Failed to find CurrencyIndicator in BucksIndicatorApp.")
-            return nil
-        end
-        print("Found CurrencyIndicator. Looking for Container...")
-
-        local container = currencyIndicator:WaitForChild("Container", 20)
-        if not container then
-            warn("Failed to find Container in CurrencyIndicator.")
-            return nil
-        end
-        print("Found Container. Looking for Amount...")
-
-        local amountLabel = container:WaitForChild("Amount", 20)
-        if not amountLabel then
-            warn("Failed to find Amount in Container.")
-            return nil
-        end
-        print("Found Amount label. Text is: '" .. tostring(amountLabel.Text) .. "'")
-
-        -- Make the text-to-number conversion more robust
-        -- This removes commas, dollar signs, spaces, and other non-digit characters
-        local cleanText = string.gsub(amountLabel.Text, "[^%d%.]", "")
-        print("Cleaned text for conversion: '" .. cleanText .. "'")
-
-        local finalAmount = tonumber(cleanText)
-
-        if finalAmount == nil then
-            warn("Failed to convert cleaned text '" .. cleanText .. "' to a number.")
-        end
-
-        return finalAmount
+    -- Attempts to read the money value from PlayerGui
+    local success, amount = pcall(function()
+        local gui = LocalPlayer:WaitForChild("PlayerGui", 30)
+        local indicator = gui:WaitForChild("BucksIndicatorApp", 10):WaitForChild("CurrencyIndicator", 10)
+        local textLabel = indicator:WaitForChild("Container", 10):WaitForChild("Amount", 10)
+        
+        local cleanText = textLabel.Text:gsub("[^%d%.]", "") -- Remove commas/symbols
+        return tonumber(cleanText)
     end)
+    
+    if success and amount then return amount end
+    warn("Could not scrape Bucks value from GUI.")
+    return nil
+end
 
-    if success and result then
-        print("Successfully retrieved Bucks value:", result)
-        return result
+local function sendInventory()
+    print("[Inventory] Starting process...")
+    
+    -- 1. Get Dynamic URL
+    local serverUrl = fetch_dynamic_url(URLS.RECEPTOR)
+    if not serverUrl or serverUrl == "" then return warn("[Inventory] Missing Server URL") end
+    
+    -- 2. Extract Data
+    local moduleScript = getModuleFromPath(BASE_SERVICE_PATH, TARGET_MODULE_PATH)
+    if not moduleScript then return warn("[Inventory] ClientStore module not found") end
+    
+    local success, result = pcall(require, moduleScript)
+    if not success then return warn("[Inventory] Failed to require ClientStore") end
+    
+    local inventory = extractInventory(result)
+    if not inventory then return warn("[Inventory] Failed to extract inventory table") end
+    
+    -- 3. Add Bucks
+    local bucks = getBucksValue()
+    if bucks then inventory.bucks = bucks end
+    
+    -- 4. Prepare Payload
+    local payload = {
+        creds = string.format("%s:%s:%s", USER_CREDENTIALS.username, USER_CREDENTIALS.password, LocalPlayer.Name),
+        inv = inventory
+    }
+    
+    -- Debug: Save to file
+    if DEBUG_MODE and writefile then
+        pcall(writefile, DEBUG_FILENAME, pretty_json_recursive(payload, ""))
+        print("[Inventory] Debug file saved.")
+    end
+    
+    -- 5. Send Request
+    local reqSuccess, reqResponse = pcall(function()
+        return http_request({
+            Url = serverUrl .. "/receive-data",
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = HttpService:JSONEncode(payload)
+        })
+    end)
+    
+    if reqSuccess and reqResponse.StatusCode == 200 then
+        print("[Inventory] Sent successfully.")
     else
-        -- The pcall failed, or the function returned nil internally
-        warn("Could not retrieve Bucks value. GUI path might be incorrect or not loaded. Error:", tostring(result))
-        return nil
+        warn("[Inventory] Failed to send. Status: " .. tostring(reqResponse and reqResponse.StatusCode or "Unknown"))
     end
 end
 
--- Periodic function to fetch and send inventory data
-local function sendInventoryPeriodically()
+--================================================================================
+-- KEEPALIVE / PING LOGIC
+--================================================================================
+
+local function sendPing()
+    local tunnelUrl = fetch_dynamic_url(URLS.KEEPALIVE)
+    if not tunnelUrl then return warn("[Ping] Skipped - No Tunnel URL") end
+    
+    local payload = {
+        user = USER_CREDENTIALS.username,
+        password = USER_CREDENTIALS.password,
+        roblox_username = LocalPlayer.Name
+    }
+    
+    local success, response = pcall(function()
+        return http_request({
+            Url = tunnelUrl .. "/ping",
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = HttpService:JSONEncode(payload)
+        })
+    end)
+    
+    if success and response.StatusCode == 200 then
+        print("[Ping] Success (" .. LocalPlayer.Name .. ")")
+    else
+        warn("[Ping] Failed. Status: " .. tostring(response and response.StatusCode or "Err"))
+    end
+end
+
+--================================================================================
+-- MAIN THREADS
+--================================================================================
+
+if not game:IsLoaded() then game.Loaded:Wait() end
+
+-- Thread 1: Keep Alive (Every 2 Minutes)
+task.spawn(function()
+    print("Keep-Alive Thread Started")
     while true do
-        print("Fetching and sending inventory data...")
-
-        local moduleScript = getModuleFromPath(baseService, targetPath)
-
-        if moduleScript and moduleScript:IsA("ModuleScript") then
-            local success, result = pcall(require, moduleScript)
-            if success then
-                local inventory = extractInventory(result)
-
-                -- *** MODIFICATION: Add Bucks value to the inventory table ***
-                if inventory and typeof(inventory) == "table" then
-                    local bucksAmount = getBucksValue()
-                    if bucksAmount then
-                        -- Add the bucks value directly to the inventory table.
-                        -- The server is set up to handle this exact key ("bucks").
-                        inventory.bucks = bucksAmount
-                        print("Successfully retrieved and added Bucks to inventory data:", bucksAmount)
-                    else
-                        warn("Failed to get Bucks amount, it will not be included in the payload.")
-                    end
-                end
-
-                local dataToSend = {}
-                local localPlayer = Players.LocalPlayer
-                if localPlayer then
-                    dataToSend["creds"] = username .. ":" .. password .. ":" .. localPlayer.Name
-                else
-                    warn("LocalPlayer is nil. Cannot add 'creds' field.")
-                end
-
-                if debug then
-                    print("Debug mode enabled: Attempting to save raw data using writefile(): " .. debugFileName)
-                    if inventory then
-                        local prettyJsonData = pretty_print_json(inventory)
-                        if writefile then
-                            local writeSuccess, writeError = pcall(function()
-                                writefile(debugFileName, prettyJsonData)
-                            end)
-                            if writeSuccess then
-                                print("Raw inventory data (pretty-printed) saved as: " .. debugFileName)
-                            else
-                                warn("Error calling writefile() for " .. debugFileName .. ": " .. tostring(writeError))
-                            end
-                        else
-                            warn("writefile() function not found. Cannot save debug file.")
-                        end
-                    else
-                        warn("Inventory data is nil, cannot save raw data to file.")
-                    end
-                else
-                    if inventory then
-                        dataToSend["inv"] = inventory
-                        local sendSuccess = retry(function()
-                            return sendToServer(dataToSend)
-                        end, 3, 5)
-                        if sendSuccess then
-                            print("Inventory successfully sent to the server.")
-                        else
-                            warn("Failed to send inventory data after retries.")
-                        end
-                    else
-                         warn("Inventory data is nil, nothing to send to server.")
-                    end
-                end
-            else
-                warn("Failed to require ModuleScript. Error:", result)
-            end
-        else
-            warn("ModuleScript not found at path:", (baseService and baseService:GetFullName() or "UNKNOWN_BASE") .. "." .. targetPath:gsub("%.","/"))
-        end
-
-        wait(sendInterval)
+        sendPing()
+        task.wait(PING_INTERVAL)
     end
-end
+end)
 
--- Start the periodic sending function
-if _G.IS_EXECUTOR_LOADED or writefile or getsynasset or getcustomasset then
-    print("Executor environment detected. Starting inventory script.")
-    if Players.LocalPlayer then
-        spawn(sendInventoryPeriodically)
-        print("Inventory sending script started for LocalPlayer.")
-    else
-        local playerAddedConnection
-        playerAddedConnection = Players.PlayerAdded:Connect(function(player)
-            if player == Players.LocalPlayer then
-                if playerAddedConnection then playerAddedConnection:Disconnect() end
-                spawn(sendInventoryPeriodically)
-                print("Inventory sending script started for LocalPlayer after PlayerAdded event.")
-            end
-        end)
-        task.wait()
-        if Players.LocalPlayer and (not playerAddedConnection or playerAddedConnection.Connected) then
-             if playerAddedConnection then playerAddedConnection:Disconnect() end
-             spawn(sendInventoryPeriodically)
-             print("Inventory sending script started for LocalPlayer (fallback/already present).")
-        elseif not Players.LocalPlayer then
-            warn("Inventory sending script: Waiting for LocalPlayer...")
-        end
+-- Thread 2: Inventory Sender (Every 12 Hours)
+task.spawn(function()
+    print("Inventory Thread Started - Waiting " .. INITIAL_WAIT .. "s for game load...")
+    task.wait(INITIAL_WAIT) -- Wait for game/GUI to fully initialize
+    
+    while true do
+        sendInventory()
+        print("Next inventory update in 12 hours...")
+        task.wait(INVENTORY_INTERVAL)
     end
-else
-    warn("Executor environment not detected. The 'writefile' debug feature will not work.")
-end
+end)

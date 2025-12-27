@@ -1,14 +1,14 @@
 local USER_CREDENTIALS = {
-    username = "akagikay", 
-    password = "12345t"    
+    username = "akagikay",
+    password = "12345t"
 }
 
-local PING_INTERVAL = 120        
-local INVENTORY_INTERVAL = 43200 
-local INITIAL_WAIT = 120          
+local PING_INTERVAL = 120
+local INVENTORY_INTERVAL = 43200
+local INITIAL_WAIT = 120
 
 -- CHUNKING CONFIG (Safe size for Executors)
-local CHUNK_SIZE = 500 * 1024 -- 500 KB
+local CHUNK_SIZE = 50 * 1024 -- 500 KB
 
 local URLS = {
     RECEPTOR = "https://raw.githubusercontent.com/akagikay/adoptmemanager/refs/heads/main/receptor_url.txt",
@@ -38,7 +38,7 @@ local function fetch_dynamic_url(github_url)
         return game:HttpGet(github_url)
     end)
     if success and response then
-        return response:gsub("^%s*(.-)%s*$", "%1") 
+        return response:gsub("^%s*(.-)%s*$", "%1")
     end
     return nil
 end
@@ -52,24 +52,24 @@ local function chunk_and_send(serverUrl, dataTable)
     local success, jsonString = pcall(function()
         return HttpService:JSONEncode(dataTable)
     end)
-    
-    if not success then 
+
+    if not success then
         return warn("[Chunking] JSON Encode failed. Data might be recursive or invalid.")
     end
 
     local totalLen = #jsonString
     local transferId = HttpService:GenerateGUID(false)
     local chunkCount = math.ceil(totalLen / CHUNK_SIZE)
-    
+
     print(string.format("[Chunking] Payload size: %.2f MB. Splitting into %d chunks.", totalLen / 1024 / 1024, chunkCount))
 
     for i = 1, chunkCount do
         -- Calculate substring indices
         local startIdx = ((i - 1) * CHUNK_SIZE) + 1
         local endIdx = math.min(i * CHUNK_SIZE, totalLen)
-        
+
         local chunkData = string.sub(jsonString, startIdx, endIdx)
-        
+
         -- Create the metadata payload
         local payload = {
             transfer_id = transferId,
@@ -77,9 +77,9 @@ local function chunk_and_send(serverUrl, dataTable)
             total_chunks = chunkCount,
             data = chunkData
         }
-        
+
         local chunkJson = HttpService:JSONEncode(payload)
-        
+
         -- Send Chunk
         local response = http_request({
             Url = serverUrl .. "/receive-data",
@@ -87,16 +87,16 @@ local function chunk_and_send(serverUrl, dataTable)
             Headers = { ["Content-Type"] = "application/json" },
             Body = chunkJson
         })
-        
+
         if not response or (response.StatusCode ~= 200 and response.Status ~= 200) then
             warn("[Chunking] Failed to send chunk " .. i .. ". Aborting transfer.")
             return false
         end
-        
+
         -- Small wait to prevent client freezing between HTTP calls
         task.wait(0.1)
     end
-    
+
     print("[Chunking] Transfer complete.")
     return true
 end
@@ -108,7 +108,7 @@ end
 local function clean_inventory(rawData)
     if type(rawData) ~= "table" then return rawData end
     local cleaned = {}
-    
+
     for category, items in pairs(rawData) do
         if type(items) == "table" then
             cleaned[category] = {}
@@ -118,7 +118,7 @@ local function clean_inventory(rawData)
                     newItem.id = itemData.id
                     newItem.oid = itemData.oid
                     newItem.count = itemData.count
-                    
+
                     if itemData.properties then
                         newItem.age = itemData.properties.age
                         newItem.rideable = itemData.properties.rideable
@@ -128,7 +128,7 @@ local function clean_inventory(rawData)
                         newItem.rideable = itemData.rideable
                         newItem.flyable = itemData.flyable
                     end
-                    
+
                     cleaned[category][uid] = newItem
                 else
                     cleaned[category][uid] = itemData
@@ -177,29 +177,29 @@ end
 
 local function sendInventory()
     print("[Inventory] Collecting data...")
-    
+
     local serverUrl = fetch_dynamic_url(URLS.RECEPTOR)
     if not serverUrl then return warn("[Inventory] Could not fetch Server URL") end
-    
+
     local moduleScript = getModuleFromPath(BASE_SERVICE_PATH, TARGET_MODULE_PATH)
     if not moduleScript then return warn("[Inventory] ClientStore not found") end
-    
+
     local success, result = pcall(require, moduleScript)
     if not success then return warn("[Inventory] Failed to require ClientStore") end
-    
+
     local rawInv = extractInventory(result)
     if not rawInv then return warn("[Inventory] Inventory table is nil") end
-    
+
     -- Clean the data first to reduce size
     local cleanedInv = clean_inventory(rawInv)
     cleanedInv.bucks = getBucksValue()
-    
+
     -- Final Object
     local dataObj = {
         creds = string.format("%s:%s:%s", USER_CREDENTIALS.username, USER_CREDENTIALS.password, LocalPlayer.Name),
         inv = cleanedInv
     }
-    
+
     -- Send using the new Chunking System
     chunk_and_send(serverUrl, dataObj)
 end
@@ -207,13 +207,13 @@ end
 local function sendPing()
     local tunnelUrl = fetch_dynamic_url(URLS.KEEPALIVE)
     if not tunnelUrl then return end
-    
+
     local payload = {
         user = USER_CREDENTIALS.username,
         password = USER_CREDENTIALS.password,
         roblox_username = LocalPlayer.Name
     }
-    
+
     http_request({
         Url = tunnelUrl .. "/ping",
         Method = "POST",

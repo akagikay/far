@@ -1,17 +1,10 @@
-local RunService = game:GetService("RunService")
-local INTERVAL_SECONDS = 1800
-local function cleanMemory()
-    local startMem = gcinfo()
-
-    collectgarbage("collect")
-    
-    local endMem = gcinfo()
-    
-    print(string.format("[Memory Cleaner]: Cleaned up. Freed %d KB. Current usage: %d KB", (startMem - endMem), endMem))
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local BuyItem = ReplicatedStorage:WaitForChild("API"):WaitForChild("ShopAPI/BuyItem")
+for i = 1, 100 do
+    BuyItem:InvokeServer(
+        "pet_accessories",
+        "bat_wings",
+        { buy_count = 1 }
+    )
+    task.wait(0.1) -- optional delay to avoid spam / throttling
 end
-task.spawn(function()
-    while true do
-        task.wait(INTERVAL_SECONDS)
-        cleanMemory()
-    end
-end)

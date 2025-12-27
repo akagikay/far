@@ -1,12 +1,1 @@
-wait(100)
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local buyItem = ReplicatedStorage:WaitForChild("API"):WaitForChild("ShopAPI/BuyItem")
-
-for i = 1, 300 do
-    buyItem:InvokeServer(
-        "pet_accessories",
-        "rain_boots",
-        { buy_count = 1 }
-    )
-    task.wait(0.1) -- small delay to avoid flooding the server
-end
+print("poor now")

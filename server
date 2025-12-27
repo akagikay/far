@@ -1,95 +1,155 @@
+--[[
+    CONSOLIDATED ADOPT ME MANAGER SCRIPT
+    - Protocol: Executor HTTP Request
+    - Optimization: Data Cleaning + CHUNKING (Fixes Timeouts)
+]]
+
+--================================================================================
+-- CONFIGURATION
+--================================================================================
+
 local USER_CREDENTIALS = {
-    username = "akagikay", -- Your dashboard username
-    password = "12345t"    -- Your dashboard password
+    username = "akagikay",
+    password = "12345t"
 }
 
--- TIMING CONFIGURATION
-local PING_INTERVAL = 120        -- Ping server every 2 minutes
-local INVENTORY_INTERVAL = 43200 -- Send inventory every 12 hours (12 * 60 * 60)
-local INITIAL_WAIT = 300          -- Wait time upon script load before sending first inventory (allows GUI to load)
+local PING_INTERVAL = 120
+local INVENTORY_INTERVAL = 43200
+local INITIAL_WAIT = 60
 
--- GITHUB DYNAMIC URL SOURCES
+-- CHUNKING CONFIG (Safe size for Executors)
+local CHUNK_SIZE = 500 * 1024 -- 500 KB
+
 local URLS = {
     RECEPTOR = "https://raw.githubusercontent.com/akagikay/adoptmemanager/refs/heads/main/receptor_url.txt",
     KEEPALIVE = "https://raw.githubusercontent.com/akagikay/adoptmemanager/refs/heads/main/keepalive_url.txt"
 }
 
--- DEBUGGING
-local DEBUG_MODE = false         -- Set to true to save raw inventory JSON to file
-local DEBUG_FILENAME = "raw_inventory_data_pretty.json"
-
--- GAME PATHS
 local TARGET_MODULE_PATH = "ClientStore"
 local BASE_SERVICE_PATH = game:GetService("ReplicatedStorage"):WaitForChild("ClientModules"):WaitForChild("Core")
 
 --================================================================================
--- CORE UTILITIES & HTTP SETUP
+-- HTTP & UTILITIES
 --================================================================================
 
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 
--- Detect Executor HTTP Request Function
-local http_request = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
+local http_request = (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request) or request
+
 if not http_request then
-    warn("Executor does not support HTTP requests. Script cannot run.")
+    warn("CRITICAL: This script requires an executor with a custom request() function.")
     return
 end
 
--- Helper: Fetch dynamic URL from GitHub text file
 local function fetch_dynamic_url(github_url)
     local success, response = pcall(function()
         return game:HttpGet(github_url)
     end)
-    
     if success and response then
-        -- Remove newlines and whitespace
         return response:gsub("^%s*(.-)%s*$", "%1")
-    else
-        warn("Failed to fetch dynamic URL from GitHub: " .. github_url)
-        return nil
     end
+    return nil
 end
 
 --================================================================================
--- JSON PRETTY PRINT UTILITIES (For Debugging)
+-- CHUNKING LOGIC
 --================================================================================
 
-local function is_json_array(tbl)
-    if type(tbl) ~= "table" then return false end
-    local n = 0
-    for k, _ in pairs(tbl) do
-        n = n + 1
-        if type(k) ~= "number" or k < 1 or math.floor(k) ~= k then return false end
+local function chunk_and_send(serverUrl, dataTable)
+    -- 1. Encode the full data to JSON first
+    local success, jsonString = pcall(function()
+        return HttpService:JSONEncode(dataTable)
+    end)
+
+    if not success then
+        return warn("[Chunking] JSON Encode failed. Data might be recursive or invalid.")
     end
+
+    local totalLen = #jsonString
+    local transferId = HttpService:GenerateGUID(false)
+    local chunkCount = math.ceil(totalLen / CHUNK_SIZE)
+
+    print(string.format("[Chunking] Payload size: %.2f MB. Splitting into %d chunks.", totalLen / 1024 / 1024, chunkCount))
+
+    for i = 1, chunkCount do
+        -- Calculate substring indices
+        local startIdx = ((i - 1) * CHUNK_SIZE) + 1
+        local endIdx = math.min(i * CHUNK_SIZE, totalLen)
+
+        local chunkData = string.sub(jsonString, startIdx, endIdx)
+
+        -- Create the metadata payload
+        local payload = {
+            transfer_id = transferId,
+            chunk_index = i - 1, -- Python uses 0-based indexing usually, but logic handles it
+            total_chunks = chunkCount,
+            data = chunkData
+        }
+
+        local chunkJson = HttpService:JSONEncode(payload)
+
+        -- Send Chunk
+        local response = http_request({
+            Url = serverUrl .. "/receive-data",
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = chunkJson
+        })
+
+        if not response or (response.StatusCode ~= 200 and response.Status ~= 200) then
+            warn("[Chunking] Failed to send chunk " .. i .. ". Aborting transfer.")
+            return false
+        end
+
+        -- Small wait to prevent client freezing between HTTP calls
+        task.wait(0.1)
+    end
+
+    print("[Chunking] Transfer complete.")
     return true
 end
 
-local function pretty_json_recursive(val, indent)
-    local valType = type(val)
-    if valType == "string" then return string.format("%q", val)
-    elseif valType == "number" or valType == "boolean" then return tostring(val)
-    elseif valType == "nil" then return "null"
-    elseif valType == "table" then
-        local nextIndent = indent .. "  "
-        local items = {}
-        if is_json_array(val) then
-            for _, v in ipairs(val) do table.insert(items, nextIndent .. pretty_json_recursive(v, nextIndent)) end
-            return "[\n" .. table.concat(items, ",\n") .. "\n" .. indent .. "]"
-        else
-            for k, v in pairs(val) do
-                table.insert(items, nextIndent .. string.format("%q", tostring(k)) .. ": " .. pretty_json_recursive(v, nextIndent))
+--================================================================================
+-- DATA EXTRACTION & CLEANING
+--================================================================================
+
+local function clean_inventory(rawData)
+    if type(rawData) ~= "table" then return rawData end
+    local cleaned = {}
+
+    for category, items in pairs(rawData) do
+        if type(items) == "table" then
+            cleaned[category] = {}
+            for uid, itemData in pairs(items) do
+                if type(itemData) == "table" then
+                    local newItem = {}
+                    newItem.id = itemData.id
+                    newItem.oid = itemData.oid
+                    newItem.count = itemData.count
+
+                    if itemData.properties then
+                        newItem.age = itemData.properties.age
+                        newItem.rideable = itemData.properties.rideable
+                        newItem.flyable = itemData.properties.flyable
+                    else
+                        newItem.age = itemData.age
+                        newItem.rideable = itemData.rideable
+                        newItem.flyable = itemData.flyable
+                    end
+
+                    cleaned[category][uid] = newItem
+                else
+                    cleaned[category][uid] = itemData
+                end
             end
-            return "{\n" .. table.concat(items, ",\n") .. "\n" .. indent .. "}"
+        else
+            cleaned[category] = items
         end
     end
-    return '"unhandled_type"'
+    return cleaned
 end
-
---================================================================================
--- INVENTORY LOGIC
---================================================================================
 
 local function getModuleFromPath(base, path)
     local current = base
@@ -108,124 +168,91 @@ local function extractInventory(data)
 end
 
 local function getBucksValue()
-    -- Attempts to read the money value from PlayerGui
-    local success, amount = pcall(function()
-        local gui = LocalPlayer:WaitForChild("PlayerGui", 30)
-        local indicator = gui:WaitForChild("BucksIndicatorApp", 10):WaitForChild("CurrencyIndicator", 10)
-        local textLabel = indicator:WaitForChild("Container", 10):WaitForChild("Amount", 10)
-        
-        local cleanText = textLabel.Text:gsub("[^%d%.]", "") -- Remove commas/symbols
+    local success, result = pcall(function()
+        local playerGui = LocalPlayer:WaitForChild("PlayerGui", 20)
+        local bucksApp = playerGui:WaitForChild("BucksIndicatorApp", 20)
+        local indicator = bucksApp:WaitForChild("CurrencyIndicator", 20)
+        local container = indicator:WaitForChild("Container", 20)
+        local label = container:WaitForChild("Amount", 20)
+        local cleanText = string.gsub(label.Text, "[^%d%.]", "")
         return tonumber(cleanText)
     end)
-    
-    if success and amount then return amount end
-    warn("Could not scrape Bucks value from GUI.")
+    if success and result then return result end
     return nil
 end
 
+--================================================================================
+-- SENDING FUNCTIONS
+--================================================================================
+
 local function sendInventory()
-    print("[Inventory] Starting process...")
-    
-    -- 1. Get Dynamic URL
+    print("[Inventory] Collecting data...")
+
     local serverUrl = fetch_dynamic_url(URLS.RECEPTOR)
-    if not serverUrl or serverUrl == "" then return warn("[Inventory] Missing Server URL") end
-    
-    -- 2. Extract Data
+    if not serverUrl then return warn("[Inventory] Could not fetch Server URL") end
+
     local moduleScript = getModuleFromPath(BASE_SERVICE_PATH, TARGET_MODULE_PATH)
-    if not moduleScript then return warn("[Inventory] ClientStore module not found") end
-    
+    if not moduleScript then return warn("[Inventory] ClientStore not found") end
+
     local success, result = pcall(require, moduleScript)
     if not success then return warn("[Inventory] Failed to require ClientStore") end
-    
-    local inventory = extractInventory(result)
-    if not inventory then return warn("[Inventory] Failed to extract inventory table") end
-    
-    -- 3. Add Bucks
-    local bucks = getBucksValue()
-    if bucks then inventory.bucks = bucks end
-    
-    -- 4. Prepare Payload
-    local payload = {
-        creds = string.format("%s:%s:%s", USER_CREDENTIALS.username, USER_CREDENTIALS.password, LocalPlayer.Name),
-        inv = inventory
-    }
-    
-    -- Debug: Save to file
-    if DEBUG_MODE and writefile then
-        pcall(writefile, DEBUG_FILENAME, pretty_json_recursive(payload, ""))
-        print("[Inventory] Debug file saved.")
-    end
-    
-    -- 5. Send Request
-    local reqSuccess, reqResponse = pcall(function()
-        return http_request({
-            Url = serverUrl .. "/receive-data",
-            Method = "POST",
-            Headers = { ["Content-Type"] = "application/json" },
-            Body = HttpService:JSONEncode(payload)
-        })
-    end)
-    
-    if reqSuccess and reqResponse.StatusCode == 200 then
-        print("[Inventory] Sent successfully.")
-    else
-        warn("[Inventory] Failed to send. Status: " .. tostring(reqResponse and reqResponse.StatusCode or "Unknown"))
-    end
-end
 
---================================================================================
--- KEEPALIVE / PING LOGIC
---================================================================================
+    local rawInv = extractInventory(result)
+    if not rawInv then return warn("[Inventory] Inventory table is nil") end
+
+    -- Clean the data first to reduce size
+    local cleanedInv = clean_inventory(rawInv)
+    cleanedInv.bucks = getBucksValue()
+
+    -- Final Object
+    local dataObj = {
+        creds = string.format("%s:%s:%s", USER_CREDENTIALS.username, USER_CREDENTIALS.password, LocalPlayer.Name),
+        inv = cleanedInv
+    }
+
+    -- Send using the new Chunking System
+    chunk_and_send(serverUrl, dataObj)
+end
 
 local function sendPing()
     local tunnelUrl = fetch_dynamic_url(URLS.KEEPALIVE)
-    if not tunnelUrl then return warn("[Ping] Skipped - No Tunnel URL") end
-    
+    if not tunnelUrl then return end
+
     local payload = {
         user = USER_CREDENTIALS.username,
         password = USER_CREDENTIALS.password,
         roblox_username = LocalPlayer.Name
     }
-    
-    local success, response = pcall(function()
-        return http_request({
-            Url = tunnelUrl .. "/ping",
-            Method = "POST",
-            Headers = { ["Content-Type"] = "application/json" },
-            Body = HttpService:JSONEncode(payload)
-        })
-    end)
-    
-    if success and response.StatusCode == 200 then
-        print("[Ping] Success (" .. LocalPlayer.Name .. ")")
-    else
-        warn("[Ping] Failed. Status: " .. tostring(response and response.StatusCode or "Err"))
-    end
+
+    http_request({
+        Url = tunnelUrl .. "/ping",
+        Method = "POST",
+        Headers = { ["Content-Type"] = "application/json" },
+        Body = HttpService:JSONEncode(payload)
+    })
 end
 
 --================================================================================
--- MAIN THREADS
+-- THREAD EXECUTION
 --================================================================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
 
--- Thread 1: Keep Alive (Every 2 Minutes)
+-- Ping Loop
 task.spawn(function()
-    print("Keep-Alive Thread Started")
     while true do
         sendPing()
         task.wait(PING_INTERVAL)
     end
 end)
 
--- Thread 2: Inventory Sender (Every 12 Hours)
+-- Inventory Loop
 task.spawn(function()
-    print("Inventory Thread Started - Waiting " .. INITIAL_WAIT .. "s for game load...")
-    task.wait(INITIAL_WAIT) -- Wait for game/GUI to fully initialize
-    
+    print("Inventory Thread Started - Waiting " .. INITIAL_WAIT .. "s for GUI load...")
+    task.wait(INITIAL_WAIT)
     while true do
         sendInventory()
-        print("Next inventory update in 12 hours...")
+        print("Inventory sent (Chunked). Sleeping for 12 hours...")
         task.wait(INVENTORY_INTERVAL)
     end
 end)

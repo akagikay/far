@@ -36,7 +36,7 @@ getgenv().SETTINGS = {
     
     ENABLE_RELEASE_PETS = false, -- if true it will use the pets in PETS_TO_AGE_IN_PEN to RELEASE
 
-    PET_AUTO_FUSION = false,
+    PET_AUTO_FUSION = true,
     DEBUG_MODE = false,
     POTATO_MODE = true,
 

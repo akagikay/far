@@ -4,7 +4,7 @@ local USER_CREDENTIALS = {
 }
 
 -- TOGGLE DEBUG MODE HERE
-local DEBUG_MODE = true 
+local DEBUG_MODE = false 
 
 local PING_INTERVAL = 120
 local INVENTORY_INTERVAL = 43200
@@ -126,11 +126,15 @@ local function clean_inventory(rawData)
                         newItem.age = itemData.properties.age
                         newItem.rideable = itemData.properties.rideable
                         newItem.flyable = itemData.properties.flyable
+                        newItem.neon = itemData.properties.neon -- NEW
+                        newItem.mega_neon = itemData.properties.mega_neon -- NEW
                         newItem.pumping = itemData.properties.pumping 
                     else
                         newItem.age = itemData.age
                         newItem.rideable = itemData.rideable
                         newItem.flyable = itemData.flyable
+                        newItem.neon = itemData.neon -- NEW
+                        newItem.mega_neon = itemData.mega_neon -- NEW
                         newItem.pumping = itemData.pumping
                     end
 

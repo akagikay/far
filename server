@@ -8,7 +8,7 @@ local INVENTORY_INTERVAL = 43200
 local INITIAL_WAIT = 120
 
 -- CHUNKING CONFIG (Safe size for Executors)
-local CHUNK_SIZE = 50 * 1024 -- 500 KB
+local CHUNK_SIZE = 50 * 1024 -- 50 KB chunks
 
 local URLS = {
     RECEPTOR = "https://raw.githubusercontent.com/akagikay/adoptmemanager/refs/heads/main/receptor_url.txt",
@@ -123,10 +123,12 @@ local function clean_inventory(rawData)
                         newItem.age = itemData.properties.age
                         newItem.rideable = itemData.properties.rideable
                         newItem.flyable = itemData.properties.flyable
+                        newItem.pumping = itemData.properties.pumping -- Added Pumping
                     else
                         newItem.age = itemData.age
                         newItem.rideable = itemData.rideable
                         newItem.flyable = itemData.flyable
+                        newItem.pumping = itemData.pumping -- Added Pumping
                     end
 
                     cleaned[category][uid] = newItem

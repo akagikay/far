@@ -7,7 +7,7 @@ local USER_CREDENTIALS = {
 local DEBUG_MODE = false 
 
 local PING_INTERVAL = 120
-local INVENTORY_INTERVAL = 43200
+local INVENTORY_INTERVAL = 120
 local INITIAL_WAIT = 120
 
 -- CHUNKING CONFIG (Safe size for Executors)

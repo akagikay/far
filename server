@@ -4,7 +4,7 @@ local USER_CREDENTIALS = {
 }
 
 -- TOGGLE DEBUG MODE HERE
-local DEBUG_MODE = true 
+local DEBUG_MODE = false 
 
 local PING_INTERVAL = 120
 local INVENTORY_INTERVAL = 120
